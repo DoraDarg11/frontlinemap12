@@ -1,0 +1,1067 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Покровский район - Arma 3</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #1a1a1a;
+            font-family: Arial, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .header {
+            background: #2a2a2a;
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 10;
+            border-bottom: 1px solid #444;
+            flex-shrink: 0;
+        }
+        .header h1 {
+            color: #ffcc00;
+            font-size: 18px;
+            font-weight: bold;
+            text-shadow: 0 0 10px rgba(255, 204, 0, 0.3);
+        }
+        .header .info {
+            color: #aaa;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .header .info .badge {
+            background: #4a6fa5;
+            color: white;
+            padding: 3px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+        }
+        #map-container {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            background: #111;
+        }
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+        .coord-info {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            color: #aaa;
+            font-size: 12px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 4px 12px;
+            border-radius: 12px;
+            pointer-events: none;
+            z-index: 1000;
+            border: 1px solid #333;
+        }
+        .leaflet-control-zoom {
+            bottom: 20px;
+            right: 20px;
+            top: auto !important;
+        }
+        .leaflet-control-attribution {
+            font-size: 10px;
+            opacity: 0.7;
+        }
+        .flag-marker {
+            background: transparent;
+            border: none;
+            text-align: center;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.8));
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: visible;
+            padding: 0;
+            margin: 0;
+            transition: none;
+        }
+        .flag-marker img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: block;
+            margin: 0;
+            padding: 0;
+            border-radius: 4px;
+        }
+        .flag-marker .emoji {
+            font-size: 100%;
+            line-height: 1;
+        }
+        .flag-popup .leaflet-popup-content-wrapper {
+            background: rgba(30,30,30,0.95);
+            color: #eee;
+            border-radius: 8px;
+            border: 1px solid #555;
+            max-width: 320px;
+        }
+        .flag-popup .leaflet-popup-tip {
+            background: rgba(30,30,30,0.95);
+        }
+        .flag-popup .leaflet-popup-content {
+            color: #eee;
+            font-weight: normal;
+            min-width: 200px;
+            padding: 8px 0;
+        }
+        .flag-popup .leaflet-popup-content .flag-title {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+        .flag-popup .leaflet-popup-content .flag-type {
+            font-size: 12px;
+            color: #aaa;
+            margin-bottom: 6px;
+        }
+        .flag-popup .leaflet-popup-content .flag-preview {
+            margin-top: 8px;
+            max-width: 100%;
+            border-radius: 4px;
+            border: 1px solid #444;
+            cursor: pointer;
+            transition: transform 0.2s;
+            position: relative;
+            overflow: hidden;
+            background: #111;
+        }
+        .flag-popup .leaflet-popup-content .flag-preview:hover {
+            transform: scale(1.02);
+        }
+        .flag-popup .leaflet-popup-content .flag-preview img {
+            width: 100%;
+            border-radius: 4px;
+            max-height: 200px;
+            object-fit: cover;
+            display: block;
+            cursor: pointer;
+        }
+        .flag-popup .leaflet-popup-content .flag-preview video {
+            width: 100%;
+            border-radius: 4px;
+            max-height: 200px;
+            display: block;
+            background: #000;
+            cursor: pointer;
+        }
+        .flag-popup .leaflet-popup-content .flag-preview iframe {
+            width: 100%;
+            height: 180px;
+            border: none;
+            border-radius: 4px;
+            pointer-events: none;
+        }
+        .city-label {
+            font-size: 14px;
+            font-weight: bold;
+            color: #000000;
+            text-shadow: 
+                -1px -1px 0 #ffffff,
+                1px -1px 0 #ffffff,
+                -1px 1px 0 #ffffff,
+                1px 1px 0 #ffffff,
+                0 0 8px rgba(255,255,255,0.9);
+            background: transparent;
+            padding: 2px 6px;
+            border: none;
+            white-space: nowrap;
+            pointer-events: none;
+            font-family: Arial, sans-serif;
+        }
+        .leaflet-control-layers {
+            background: rgba(0,0,0,0.8) !important;
+            border: 1px solid #444 !important;
+            border-radius: 4px !important;
+        }
+        .leaflet-control-layers label {
+            color: #ddd !important;
+        }
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            color: #fff;
+            font-size: 24px;
+            backdrop-filter: blur(4px);
+        }
+        .loading-overlay.hidden {
+            display: none;
+        }
+        .loading-spinner {
+            border: 4px solid rgba(255,255,255,0.1);
+            border-top: 4px solid #ffcc00;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin-right: 20px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .fullscreen-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.95);
+            z-index: 10000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            cursor: pointer;
+        }
+        .fullscreen-overlay.active {
+            display: flex;
+        }
+        .fullscreen-overlay img {
+            max-width: 95%;
+            max-height: 85%;
+            object-fit: contain;
+            border-radius: 8px;
+            box-shadow: 0 0 50px rgba(0,0,0,0.5);
+        }
+        .fullscreen-overlay video {
+            max-width: 95%;
+            max-height: 85%;
+            border-radius: 8px;
+            box-shadow: 0 0 50px rgba(0,0,0,0.5);
+        }
+        .fullscreen-overlay iframe {
+            width: 90%;
+            height: 80%;
+            border: none;
+            border-radius: 8px;
+            box-shadow: 0 0 50px rgba(0,0,0,0.5);
+        }
+        .fullscreen-overlay .close-btn {
+            position: absolute;
+            top: 20px;
+            right: 30px;
+            color: #fff;
+            font-size: 40px;
+            cursor: pointer;
+            transition: transform 0.3s;
+            z-index: 10001;
+        }
+        .fullscreen-overlay .close-btn:hover {
+            transform: scale(1.2);
+        }
+        .fullscreen-overlay .caption {
+            color: #aaa;
+            font-size: 14px;
+            margin-top: 15px;
+            text-align: center;
+            max-width: 80%;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>🛰️ Покровский район — Arma 3</h1>
+        <div class="info">
+            <span class="badge">👁️ Режим просмотра</span>
+            <span style="color:#666;">|</span>
+            <span style="color:#888;font-size:12px;">Клик по фото/видео — полноэкранный режим</span>
+        </div>
+    </div>
+
+    <div id="map-container">
+        <div id="map"></div>
+        <div class="loading-overlay" id="loadingOverlay">
+            <div class="loading-spinner"></div>
+            <span>Загрузка данных...</span>
+        </div>
+        <div class="coord-info" id="coordDisplay">🌍 широта: — долгота: —</div>
+    </div>
+
+    <div class="fullscreen-overlay" id="fullscreenOverlay" onclick="closeFullscreen()">
+        <div class="close-btn" onclick="closeFullscreen()">✕</div>
+        <div id="fullscreenContent"></div>
+        <div class="caption" id="fullscreenCaption"></div>
+    </div>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
+    </script>
+
+    <script>
+        // ============================================================
+        //  ПРЕДЗАГРУЖЕННЫЕ ГЕОДАННЫЕ
+        // ============================================================
+        const PRELOADED_GEOJSON = {
+            "type": "FeatureCollection",
+            "features": [{
+                "type": "Feature",
+                "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [
+                        [
+                            [36.93740844726563, 48.46108396195774],
+                            [36.93054199218751, 48.32384328242262],
+                            [36.96290016174317, 48.32372914128284],
+                            [36.982040405273445, 48.33109072172659],
+                            [37.01208114624024, 48.32641139054024],
+                            [37.03765869140626, 48.31334122833892],
+                            [37.061433792114265, 48.308888618124726],
+                            [37.07585334777833, 48.30492090093197],
+                            [37.07928657531739, 48.30420725000317],
+                            [37.08074569702149, 48.30272282410871],
+                            [37.08096027374268, 48.30103851937278],
+                            [37.08070278167725, 48.29709874212302],
+                            [37.08336353302003, 48.28296443107107],
+                            [37.080874443054206, 48.28273596563675],
+                            [37.08435058593751, 48.271168567670884],
+                            [37.08353519439698, 48.25765567370714],
+                            [37.08280563354493, 48.24879607895383],
+                            [37.07611083984376, 48.241824189703564],
+                            [37.080177068710334, 48.21559430013005],
+                            [37.08855628967286, 48.216423570510145],
+                            [37.0900583267212, 48.2190828642298],
+                            [37.09295511245728, 48.22051253494056],
+                            [37.09471464157105, 48.2209557247538],
+                            [37.09480047225953, 48.22224238311676],
+                            [37.10394144058228, 48.223528409640274],
+                            [37.109858393669136, 48.22548691575061],
+                            [37.11577534675599, 48.227445421860935],
+                            [37.12169229984284, 48.22940392797126],
+                            [37.127609252929695, 48.23136243408159],
+                            [37.13593482971192, 48.23282034797775],
+                            [37.141299247741706, 48.23490709362802],
+                            [37.146320343017585, 48.23490709362802],
+                            [37.148852348327644, 48.235278696939965],
+                            [37.15164184570313, 48.235078603184284],
+                            [37.15524673461915, 48.234621243089954],
+                            [37.165031433105476, 48.23427822033628],
+                            [37.16267108917237, 48.211576437943144],
+                            [37.18640327453614, 48.21191961286358],
+                            [37.21103668212891, 48.21117606429588],
+                            [37.23429679870606, 48.21426457993381],
+                            [37.24974632263184, 48.217124150536726],
+                            [37.25712776184083, 48.215808767895304],
+                            [37.26682662963868, 48.2195260664203],
+                            [37.27695465087891, 48.21495089144404],
+                            [37.28948593139649, 48.21066129357822],
+                            [37.29068756103516, 48.22930413198368],
+                            [37.30184555053712, 48.22884672027457],
+                            [37.32055664062501, 48.20591371971207],
+                            [37.32381820678712, 48.19744707423512],
+                            [37.328581809997566, 48.182855990135806],
+                            [37.34064102172852, 48.18119634730776],
+                            [37.34578013420106, 48.181289347403805],
+                            [37.34744310379029, 48.174070726555954],
+                            [37.351047992706306, 48.17415658332106],
+                            [37.349824905395515, 48.1812750399436],
+                            [37.36244201660157, 48.18142526603188],
+                            [37.384672164917, 48.17744765093615],
+                            [37.39741802215577, 48.178620937003004],
+                            [37.39486455917359, 48.18996608635837],
+                            [37.392740249633796, 48.19464361974252],
+                            [37.38741874694825, 48.1959023325713],
+                            [37.381753921508796, 48.20259587674385],
+                            [37.39188194274903, 48.20328234464588],
+                            [37.39213943481446, 48.20591371971207],
+                            [37.38887786865235, 48.214676977093404],
+                            [37.38561630249024, 48.223440234474744],
+                            [37.414712905883796, 48.234392561509694],
+                            [37.408275604248054, 48.25028349849022],
+                            [37.402524948120124, 48.25816997184737],
+                            [37.396259307861335, 48.263998322520365],
+                            [37.38956451416016, 48.270083097169426],
+                            [37.377548217773445, 48.286158792801345],
+                            [37.36038208007813, 48.306490897851766],
+                            [37.36038208007813, 48.33685369807936],
+                            [37.37960815429688, 48.37996974817055],
+                            [37.415742874145515, 48.40729759120356],
+                            [37.54262208938599, 48.41940377703594],
+                            [37.42355346679688, 48.408009799573286],
+                            [37.44964599609376, 48.41028879933081],
+                            [37.46612548828126, 48.411656150161186],
+                            [37.4959945678711, 48.4146186174932],
+                            [37.54268646240235, 48.41940377703594],
+                            [37.567813396453865, 48.41911895871749],
+                            [37.546548843383796, 48.41937529527591],
+                            [37.55073308944703, 48.419304090805994],
+                            [37.567019462585456, 48.41911895871749],
+                            [37.569079399108894, 48.41916168156697],
+                            [37.56036758422852, 48.419061994862304],
+                            [37.648344039917, 48.42042910976937],
+                            [37.65014648437501, 48.467002962351486],
+                            [37.649459838867195, 48.468824054372725],
+                            [37.6498031616211, 48.467913516530786],
+                            [36.93740844726563, 48.46108396195774]
+                        ]
+                    ]
+                },
+                "properties": {
+                    "color": "blue",
+                    "type": "polygon"
+                }
+            }, {
+                "type": "Feature",
+                "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [
+                        [
+                            [36.932601928710945, 47.97429476278083],
+                            [36.934318542480476, 48.31973404047173],
+                            [36.96264266967774, 48.31779345003561],
+                            [36.98272705078126, 48.32156041109599],
+                            [36.99045181274415, 48.32544123156017],
+                            [37.0071029663086, 48.32213113850614],
+                            [37.01328277587891, 48.320989677300176],
+                            [37.01740264892579, 48.31493950646935],
+                            [37.035942077636726, 48.30877444352327],
+                            [37.06323623657227, 48.30546326896437],
+                            [37.063665390014656, 48.29712729232718],
+                            [37.06323623657227, 48.2964420830209],
+                            [37.06375122070313, 48.295642660540466],
+                            [37.063922882080085, 48.29438639992413],
+                            [37.064437866210945, 48.29335852733797],
+                            [37.06684112548829, 48.29050321714062],
+                            [37.06855773925782, 48.287533525165976],
+                            [37.068901062011726, 48.27930886149765],
+                            [37.072162628173835, 48.27451052943057],
+                            [37.07387924194337, 48.26628376883916],
+                            [37.06924438476563, 48.24925473837254],
+                            [37.0646095275879, 48.25005488691924],
+                            [37.06186294555665, 48.23061916787409],
+                            [37.06048965454102, 48.21349246848875],
+                            [37.06953406333924, 48.211140154425934],
+                            [37.07405626773835, 48.209963997394524],
+                            [37.07937240600587, 48.20923134776693],
+                            [37.08426475524903, 48.20817316216066],
+                            [37.087622880935676, 48.20643552630031],
+                            [37.096667289733894, 48.20408321223749],
+                            [37.10928440093995, 48.21792480168569],
+                            [37.11520671844483, 48.21703836574241],
+                            [37.11868286132813, 48.21883981623824],
+                            [37.130870819091804, 48.22593062452037],
+                            [37.141857147216804, 48.227417282332816],
+                            [37.15936660766602, 48.22878954352343],
+                            [37.1574354171753, 48.22138461446816],
+                            [37.156319618225105, 48.20768696144312],
+                            [37.15747833251954, 48.20268168573471],
+                            [37.15790748596192, 48.20047920946549],
+                            [37.16825008392335, 48.20153755403741],
+                            [37.170267105102546, 48.194471974688206],
+                            [37.18309879302979, 48.19401425173225],
+                            [37.199277877807624, 48.194529189770215],
+                            [37.21519947052003, 48.19487247892047],
+                            [37.22159385681153, 48.20968893477074],
+                            [37.225971221923835, 48.210604096512405],
+                            [37.255668640136726, 48.20911695037711],
+                            [37.27360725402833, 48.20579931491151],
+                            [37.28330612182618, 48.20431202924948],
+                            [37.29635238647462, 48.20156615764125],
+                            [37.30270385742188, 48.18405776580578],
+                            [37.30819702148438, 48.17524408990217],
+                            [37.346820831298835, 48.16883319202972],
+                            [37.372055053710945, 48.169291139886624],
+                            [37.389049530029304, 48.1683752400835],
+                            [37.41033554077149, 48.165398452755674],
+                            [37.4161720275879, 48.16711585114587],
+                            [37.42080688476563, 48.17123737265718],
+                            [37.4051856994629, 48.17976558045985],
+                            [37.39795446395875, 48.20248861530313],
+                            [37.402009963989265, 48.20282470040005],
+                            [37.40806102752686, 48.18597482581139],
+                            [37.41969108581544, 48.18783459162184],
+                            [37.42089271545411, 48.19533019420972],
+                            [37.42132186889649, 48.200021540175825],
+                            [37.423982620239265, 48.20791576235575],
+                            [37.439689636230476, 48.21941169202879],
+                            [37.45582580566407, 48.233134794548846],
+                            [37.43986129760743, 48.24811164730251],
+                            [37.4300765991211, 48.261712774007066],
+                            [37.40930557250977, 48.287533525165976],
+                            [37.41462707519532, 48.30397887959853],
+                            [37.410507202148445, 48.31311289880474],
+                            [37.40570068359376, 48.31973404047173],
+                            [37.396774291992195, 48.32658259315046],
+                            [37.38990783691407, 48.334343174592014],
+                            [37.40913391113282, 48.367882685598474],
+                            [37.43625640869141, 48.39798098726997],
+                            [37.569808959960945, 48.412795581099964],
+                            [37.648429870605476, 48.40823770414508],
+                            [37.64533996582032, 47.97475444514465],
+                            [36.932601928710945, 47.97429476278083]
+                        ]
+                    ]
+                },
+                "properties": {
+                    "color": "red",
+                    "type": "polygon"
+                }
+            }, {
+                "type": "Feature",
+                "geometry": {
+                    "type": "Point",
+                    "coordinates": [37.081148028373725, 48.214925869831795]
+                },
+                "properties": {
+                    "text": "Позиция",
+                    "type": "flag",
+                    "flagType": "РФ БМП",
+                    "url": "https://media.discordapp.net/attachments/1444349422237515888/1521944921811058758/20260701195358_1.jpg?ex=6a46ad29&is=6a455ba9&hm=ce22f3b67fba54602b4a7c0d11a34baeed5b14bfb82f49592c5d12179531d618&=&format=webp&width=1386&height=780"
+                }
+            }, {
+                "type": "Feature",
+                "geometry": {
+                    "type": "Point",
+                    "coordinates": [37.08004295825959, 48.210003523464124]
+                },
+                "properties": {
+                    "text": "Произведена эвакуация л/с",
+                    "type": "flag",
+                    "flagType": "РФ машина",
+                    "url": "https://media.discordapp.net/attachments/1392572728594272398/1521946659796287498/20260701193715_1.jpg?ex=6a46aec8&is=6a455d48&hm=82e08b4dceb20460da2073f8898595ba8bab60720c409db68a1a34f745b63fd8&=&format=webp&width=1386&height=780"
+                }
+            }, {
+                "type": "Feature",
+                "geometry": {
+                    "type": "Point",
+                    "coordinates": [37.07930803298951, 48.22182064866072]
+                },
+                "properties": {
+                    "text": "Фимоз гэнг",
+                    "type": "flag",
+                    "flagType": "ЗСУ",
+                    "url": "https://media.discordapp.net/attachments/1392572728594272398/1521946568096354314/ArmA_3_Screenshot_2026.07.01_-_21.08.45.37.png?ex=6a46aeb2&is=6a455d32&hm=70799636b4e663394fec7dd8d761182a932fe42a65ee3c36a2e709bfbdf69004&=&format=webp&quality=lossless&width=1386&height=780"
+                }
+            }, {
+                "type": "Feature",
+                "geometry": {
+                    "type": "Point",
+                    "coordinates": [37.08035945892335, 48.21584093798261]
+                },
+                "properties": {
+                    "text": "Позиция",
+                    "type": "flag",
+                    "flagType": "ЗСУ пех",
+                    "url": "https://media.discordapp.net/attachments/1392572728594272398/1521945558061944883/image.png?ex=6a46adc1&is=6a455c41&hm=f603fc9af1924e9cf54789018574d2ecc1e4d7f6e6736c575a6cd7173acaee26&=&format=webp&quality=lossless&width=1313&height=780"
+                }
+            }, {
+                "type": "Feature",
+                "geometry": {
+                    "type": "Point",
+                    "coordinates": [37.08005905151368, 48.21770319413875]
+                },
+                "properties": {
+                    "text": "Кадр объективного контроля",
+                    "type": "flag",
+                    "flagType": "ЗСУ",
+                    "url": "https://media.discordapp.net/attachments/1392572728594272398/1521945681277878443/image.png?ex=6a46adde&is=6a455c5e&hm=6b611b011d225fe2ce55320b1b57a89860cd934bc8a71ffb0fc7b5cbb9dc392f&=&format=webp&quality=lossless&width=1407&height=780"
+                }
+            }]
+        };
+
+        // ============================================================
+        //  ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ
+        // ============================================================
+        let map;
+        let flagMarkers = [];
+        let cityMarkers = [];
+        let mainCityMarkers = [];
+
+        // ============================================================
+        //  КОНСТАНТЫ ДЛЯ ФЛАГОВ
+        // ============================================================
+        const FLAG_IMAGES = {
+            'ЗСУ': 'https://i.ytimg.com/vi/Y7_l7rSmJkE/maxresdefault.jpg?sqp=-oaymwEmCIAKENAF8quKqQMa8AEB-AH-CYAC0AWKAgwIABABGBMgNih_MA8=&rs=AOn4CLC1juFxpOTRD2ag1dmCKJi8ZFE6vA',
+            'РФ': 'https://images-ext-1.discordapp.net/external/YwTVEv0dI8omddA64ClFjCMAgsdU7o5msk9pFhystuU/https/avatars.mds.yandex.net/get-mpic/11368503/2a0000018bd2218a2d5c0687b0d69274f727/orig?format=webp',
+            'ЗСУ пех': 'https://cdn.discordapp.com/attachments/1444349422237515888/1521876342608625805/2026-07-01_165027.png?ex=6a466d4b&is=6a451bcb&hm=607254649d1d2ec23e7c197d9b4fbec06e57eb96989c5f97a59ee74a5c09f0c6',
+            'РФ пех': 'https://cdn.discordapp.com/attachments/1444349422237515888/1521876341912371250/2026-07-01_165207.png?ex=6a466d4b&is=6a451bcb&hm=69dc51389b7bd3ddadcaba2efd5f2cdc2e8b635a497981780af14529ee59931e',
+            'ЗСУ машина': 'https://cdn.discordapp.com/attachments/1444349422237515888/1521876343233450186/2026-07-01_165152.png?ex=6a466d4b&is=6a451bcb&hm=64ee827e626a41cdb529c61e78d72cbcabe337c70855053a40881048b00ea87e',
+            'РФ машина': 'https://cdn.discordapp.com/attachments/1444349422237515888/1521876342256173136/2026-07-01_165244.png?ex=6a466d4b&is=6a451bcb&hm=bb74980fb41291ab1f2548b8083935052e52c2f7d4d06ae658fcf3f6db6ff789',
+            'ЗСУ танк': 'https://cdn.discordapp.com/attachments/1444349422237515888/1521876322773635152/2026-07-01_165035.png?ex=6a466d46&is=6a451bc6&hm=6fcbfab58a3a87c5d2b50b7b425333ba0aeab552acfcc1c68ad28ccd86b43aab',
+            'РФ танк': 'https://cdn.discordapp.com/attachments/1444349422237515888/1521876324506140822/2026-07-01_165212.png?ex=6a466d46&is=6a451bc6&hm=848805cfe53f0a9facce51db9d5e3973834b6ec5ea33d547e409f7ffeb970f34',
+            'ЗСУ БТР': 'https://cdn.discordapp.com/attachments/1444349422237515888/1521876323663085608/2026-07-01_165136.png?ex=6a466d46&is=6a451bc6&hm=c172f5a2974ccf247bcf76e288cd910a2a57cf388fb593b71b763d56283c5f52',
+            'РФ БТР': 'https://cdn.discordapp.com/attachments/1444349422237515888/1521876325441208360/2026-07-01_165227.png?ex=6a466d47&is=6a451bc7&hm=dcbe0958172b38d7cdc00a3623cbddcd4a9dce1d9bdd3cfd84fce9321d114d5d',
+            'ЗСУ БМП': 'https://cdn.discordapp.com/attachments/1444349422237515888/1521876323155443903/2026-07-01_165117.png?ex=6a466d46&is=6a451bc6&hm=d1ef81b2749c81aef5cf319ab895d859239c8f5d75a02a328af3edecda2666c4',
+            'РФ БМП': 'https://cdn.discordapp.com/attachments/1444349422237515888/1521876324862660779/2026-07-01_165216.png?ex=6a466d46&is=6a451bc6&hm=9a47d69109c04d7e9a73d5b43921416933ce82110a308eec3c2d6405f48c5667',
+            'ЗСУ мавик': 'https://cdn.discordapp.com/attachments/1444349422237515888/1521876324120133732/2026-07-01_165144.png?ex=6a466d46&is=6a451bc6&hm=566ab176a2e66f126aa6d0345ce8123ab470537b83c519ba3397b88b3f8d5e07',
+            'РФ мавик': 'https://cdn.discordapp.com/attachments/1444349422237515888/1521876325755785316/2026-07-01_165234.png?ex=6a466d47&is=6a451bc7&hm=b773efeb85ead922039ba1c61dba48918fa90f581d4d76bedeead0d4524b39a5'
+        };
+
+        // ============================================================
+        //  ГРАНИЦЫ ОБЛАСТИ
+        // ============================================================
+        const BOUNDS = {
+            north: 48.47,
+            south: 47.97,
+            east: 37.65,
+            west: 36.93,
+        };
+
+        const CENTER = [
+            (BOUNDS.north + BOUNDS.south) / 2,
+            (BOUNDS.east + BOUNDS.west) / 2
+        ];
+
+        const MIN_ZOOM = 10;
+        const MAX_ZOOM = 18;
+        const DEFAULT_ZOOM = 11;
+
+        // ============================================================
+        //  ФУНКЦИЯ ДЛЯ РАСЧЕТА РАЗМЕРА ФЛАГА
+        // ============================================================
+        function getFlagSize(zoom) {
+            const minSize = 18;
+            const maxSize = 40;
+            const minZoom = 10;
+            const maxZoom = 18;
+            
+            if (zoom <= minZoom) return minSize;
+            if (zoom >= maxZoom) return maxSize;
+            
+            const progress = (zoom - minZoom) / (maxZoom - minZoom);
+            return Math.round(minSize + progress * (maxSize - minSize));
+        }
+
+        // ============================================================
+        //  ОБНОВЛЕНИЕ РАЗМЕРОВ ФЛАГОВ
+        // ============================================================
+        function updateFlagSizes() {
+            const zoom = map.getZoom();
+            const size = getFlagSize(zoom);
+            const scaleMultiplier = 1 + (zoom - MIN_ZOOM) / (MAX_ZOOM - MIN_ZOOM) * 0.3;
+            const finalSize = Math.round(size * scaleMultiplier);
+            
+            flagMarkers.forEach(marker => {
+                if (marker && marker._icon) {
+                    const img = marker._icon.querySelector('img');
+                    if (img) {
+                        img.style.width = finalSize + 'px';
+                        img.style.height = finalSize + 'px';
+                    }
+                    marker._icon.style.width = finalSize + 'px';
+                    marker._icon.style.height = finalSize + 'px';
+                }
+            });
+        }
+
+        // ============================================================
+        //  ФУНКЦИИ ДЛЯ FULLSCREEN
+        // ============================================================
+        function openFullscreen(content, caption) {
+            const overlay = document.getElementById('fullscreenOverlay');
+            const contentDiv = document.getElementById('fullscreenContent');
+            const captionDiv = document.getElementById('fullscreenCaption');
+            
+            contentDiv.innerHTML = content;
+            captionDiv.textContent = caption || '';
+            overlay.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeFullscreen() {
+            const overlay = document.getElementById('fullscreenOverlay');
+            overlay.classList.remove('active');
+            document.body.style.overflow = '';
+            document.getElementById('fullscreenContent').innerHTML = '';
+        }
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeFullscreen();
+            }
+        });
+
+        // ============================================================
+        //  СПИСОК НАСЕЛЁННЫХ ПУНКТОВ
+        // ============================================================
+        const MAIN_CITIES = [
+            { name: 'Покровск', lat: 48.282, lng: 37.183 },
+            { name: 'Мирноград', lat: 48.305, lng: 37.265 },
+        ];
+
+        const OTHER_CITIES = [
+            { name: 'Новогродовка', lat: 48.270740, lng: 37.274723 },
+            { name: 'Новоукраинка', lat: 48.249612, lng: 37.225885 },
+            { name: 'Зверово', lat: 48.252784, lng: 37.165825 },
+            { name: 'Попедрищенск', lat: 48.219528, lng: 37.223911 },
+            { name: 'Ровное', lat: 48.312057, lng: 37.202539 },
+            { name: 'Сухой яр', lat: 48.199964, lng: 37.339525 },
+            { name: 'Химическая лаб. МЯУскула', lat: 48.183911, lng: 37.389425 },
+            { name: 'Красный яр', lat: 48.217868, lng: 37.372763 },
+            { name: 'Восковка', lat: 48.329664, lng: 37.075081 },
+            { name: 'Вивальдовое', lat: 48.379115, lng: 36.944447 },
+            { name: 'Сергеевка', lat: 48.420999, lng: 37.049117 },
+            { name: 'Чушкино', lat: 48.382492, lng: 37.108533 },
+            { name: 'Глистовое', lat: 48.406141, lng: 37.182841 },
+            { name: 'Завод Им.Тесака', lat: 48.421789, lng: 37.150875 },
+            { name: 'Хуевонанное', lat: 48.420002, lng: 37.131128 },
+            { name: 'Белицкое', lat: 48.420116, lng: 37.261527 },
+            { name: 'Московское', lat: 48.216545, lng: 37.415019 },
+            { name: 'Больше Нужнотрахово', lat: 48.195023, lng: 37.090480 },
+            { name: 'Астраломатьебетское', lat: 48.186039, lng: 37.149067 },
+            { name: 'Нужнотрахово', lat: 48.204369, lng: 37.043152 },
+            { name: 'Малое нужнотрахово', lat: 48.190245, lng: 36.993826 },
+            { name: 'Песчаное', lat: 48.264584, lng: 36.994658 },
+            { name: 'Котлино', lat: 48.254163, lng: 37.050083 },
+        ];
+
+        // ============================================================
+        //  ИНИЦИАЛИЗАЦИЯ КАРТЫ
+        // ============================================================
+        function initMap() {
+            map = L.map('map', {
+                center: CENTER,
+                zoom: DEFAULT_ZOOM,
+                minZoom: MIN_ZOOM,
+                maxZoom: MAX_ZOOM,
+                zoomControl: false,
+                attributionControl: true,
+                maxBounds: [
+                    [BOUNDS.south - 0.1, BOUNDS.west - 0.1],
+                    [BOUNDS.north + 0.1, BOUNDS.east + 0.1]
+                ],
+                maxBoundsViscosity: 1.0,
+            });
+
+            const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                attribution: '&copy; <a href="https://www.esri.com">ESRI</a> | Спутник',
+                maxZoom: 19,
+                minZoom: MIN_ZOOM,
+            }).addTo(map);
+
+            const street = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+                maxZoom: 19,
+                minZoom: MIN_ZOOM,
+            });
+
+            const baseMaps = {
+                "🛰️ Спутник": satellite,
+                "🗺️ Схема": street,
+            };
+            L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map);
+
+            L.control.zoom({
+                position: 'bottomright'
+            }).addTo(map);
+
+            map.on('mousemove', function(e) {
+                if (e && e.latlng) {
+                    const lat = e.latlng.lat.toFixed(6);
+                    const lng = e.latlng.lng.toFixed(6);
+                    document.getElementById('coordDisplay').textContent = `🌍 широта: ${lat}  долгота: ${lng}`;
+                }
+            });
+
+            map.on('zoomend', function() {
+                updateCitiesVisibility();
+                updateFlagSizes();
+            });
+
+            drawBoundsAndCities();
+            loadPreloadedData();
+        }
+
+        // ============================================================
+        //  ЗАГРУЗКА ПРЕДУСТАНОВЛЕННЫХ ДАННЫХ
+        // ============================================================
+        function loadPreloadedData() {
+            try {
+                const data = PRELOADED_GEOJSON;
+                
+                data.features.forEach(feat => {
+                    const geom = feat.geometry;
+                    const props = feat.properties || {};
+
+                    if (geom.type === 'Polygon' && props.type === 'polygon') {
+                        const coords = geom.coordinates[0];
+                        const latlngs = coords.map(c => [c[1], c[0]]);
+                        if (latlngs.length > 1) {
+                            const first = latlngs[0];
+                            const last = latlngs[latlngs.length - 1];
+                            if (first[0] === last[0] && first[1] === last[1]) {
+                                latlngs.pop();
+                            }
+                        }
+                        const color = props.color || 'blue';
+                        const strokeColor = color === 'blue' ? '#4488ff' : '#ff6666';
+                        const fillColor = color === 'blue' ? 'rgba(68, 136, 255, 0.2)' : 'rgba(255, 102, 102, 0.2)';
+
+                        L.polygon(latlngs, {
+                            color: strokeColor,
+                            fillColor: fillColor,
+                            fillOpacity: 0.3,
+                            weight: 2,
+                            opacity: 0.9,
+                            interactive: false,
+                        }).addTo(map);
+                    }
+
+                    if (geom.type === 'Point' && props.type === 'flag') {
+                        const lng = geom.coordinates[0];
+                        const lat = geom.coordinates[1];
+                        const text = props.text || '';
+                        const type = props.flagType || 'ЗСУ';
+                        const url = props.url || '';
+                        
+                        if (lat !== undefined && lng !== undefined && !isNaN(lat) && !isNaN(lng)) {
+                            addFlagToMap([lat, lng], text, type, url);
+                        }
+                    }
+                });
+
+                setTimeout(() => {
+                    updateFlagSizes();
+                    document.getElementById('loadingOverlay').classList.add('hidden');
+                }, 500);
+
+                console.log('✅ Данные загружены!');
+            } catch (err) {
+                console.error('❌ Ошибка загрузки данных:', err);
+                document.getElementById('loadingOverlay').classList.add('hidden');
+            }
+        }
+
+        // ============================================================
+        //  УПРАВЛЕНИЕ ВИДИМОСТЬЮ ГОРОДОВ
+        // ============================================================
+        function updateCitiesVisibility() {
+            const zoom = map.getZoom();
+            const showOthers = zoom >= 12;
+
+            cityMarkers.forEach(marker => {
+                if (marker) {
+                    if (showOthers) {
+                        map.addLayer(marker);
+                    } else {
+                        map.removeLayer(marker);
+                    }
+                }
+            });
+        }
+
+        // ============================================================
+        //  ОТРИСОВКА ГРАНИЦ И НАЗВАНИЙ
+        // ============================================================
+        function drawBoundsAndCities() {
+            const bounds = [
+                [BOUNDS.north, BOUNDS.west],
+                [BOUNDS.north, BOUNDS.east],
+                [BOUNDS.south, BOUNDS.east],
+                [BOUNDS.south, BOUNDS.west],
+                [BOUNDS.north, BOUNDS.west]
+            ];
+
+            L.polyline(bounds, {
+                color: '#ffcc00',
+                weight: 2,
+                opacity: 0.4,
+                dashArray: '8, 8',
+                fill: true,
+                fillColor: 'rgba(255, 204, 0, 0.05)',
+                fillOpacity: 0.1,
+                interactive: false,
+            }).addTo(map);
+
+            MAIN_CITIES.forEach(city => {
+                const icon = L.divIcon({
+                    className: 'city-label',
+                    html: city.name,
+                    iconSize: [0, 0],
+                    iconAnchor: [0, 0],
+                });
+                const marker = L.marker([city.lat, city.lng], {
+                    icon: icon,
+                    interactive: false,
+                    keyboard: false,
+                }).addTo(map);
+                mainCityMarkers.push(marker);
+            });
+
+            OTHER_CITIES.forEach(city => {
+                const icon = L.divIcon({
+                    className: 'city-label',
+                    html: city.name,
+                    iconSize: [0, 0],
+                    iconAnchor: [0, 0],
+                });
+                const marker = L.marker([city.lat, city.lng], {
+                    icon: icon,
+                    interactive: false,
+                    keyboard: false,
+                });
+                cityMarkers.push(marker);
+                if (map.getZoom() >= 12) {
+                    marker.addTo(map);
+                }
+            });
+        }
+
+        // ============================================================
+        //  СОЗДАНИЕ ИКОНКИ ФЛАГА
+        // ============================================================
+        function createFlagIcon(type) {
+            const imageUrl = FLAG_IMAGES[type];
+            if (!imageUrl) {
+                return L.divIcon({
+                    className: 'flag-marker',
+                    html: `<span class="emoji">🚩</span>`,
+                    iconSize: [32, 32],
+                    iconAnchor: [16, 16],
+                });
+            }
+            
+            const zoom = map ? map.getZoom() : DEFAULT_ZOOM;
+            const size = getFlagSize(zoom);
+            const scaleMultiplier = 1 + (zoom - MIN_ZOOM) / (MAX_ZOOM - MIN_ZOOM) * 0.3;
+            const finalSize = Math.round(size * scaleMultiplier);
+            
+            return L.divIcon({
+                className: 'flag-marker',
+                html: `<img src="${imageUrl}" alt="${type}" style="width:${finalSize}px;height:${finalSize}px;border-radius:4px;" onerror="this.parentElement.innerHTML='<span class=\\'emoji\\' style=\\'font-size:${finalSize}px;\\'>🚩</span>'">`,
+                iconSize: [finalSize, finalSize],
+                iconAnchor: [finalSize/2, finalSize/2],
+            });
+        }
+
+        // ============================================================
+        //  ФУНКЦИИ ДЛЯ РАБОТЫ С МЕДИА
+        // ============================================================
+        function isVideoUrl(url) {
+            if (!url) return false;
+            const videoExtensions = /\.(mp4|webm|ogg|mov|avi|mkv)$/i;
+            const videoPlatforms = /(youtube\.com|youtu\.be|vimeo\.com|dailymotion\.com|rutube\.ru)/i;
+            return videoExtensions.test(url) || videoPlatforms.test(url);
+        }
+
+        function isImageUrl(url) {
+            if (!url) return false;
+            const imageExtensions = /\.(jpeg|jpg|gif|png|webp|bmp|svg)$/i;
+            const imagePlatforms = /(imgur\.com|i\.ytimg\.com|discordapp\.net|images-ext)/i;
+            return imageExtensions.test(url) || imagePlatforms.test(url);
+        }
+
+        function getEmbedUrl(url) {
+            const youtubeMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\s]+)/);
+            if (youtubeMatch) {
+                return `https://www.youtube.com/embed/${youtubeMatch[1]}`;
+            }
+            const vimeoMatch = url.match(/vimeo\.com\/(\d+)/);
+            if (vimeoMatch) {
+                return `https://player.vimeo.com/video/${vimeoMatch[1]}`;
+            }
+            return url;
+        }
+
+        // ============================================================
+        //  ДОБАВЛЕНИЕ ФЛАГА НА КАРТУ
+        // ============================================================
+        function addFlagToMap(latlng, text, type, url) {
+            if (!latlng || !Array.isArray(latlng) || latlng.length < 2) {
+                console.error('Некорректные координаты для флага:', latlng);
+                return;
+            }
+            
+            const icon = createFlagIcon(type);
+            
+            const marker = L.marker(latlng, { 
+                icon: icon,
+                riseOnHover: true,
+                interactive: true,
+            }).addTo(map);
+
+            flagMarkers.push(marker);
+
+            let previewHtml = '';
+            
+            if (url && url.trim()) {
+                const isVideo = isVideoUrl(url);
+                const isImage = isImageUrl(url);
+                
+                if (isVideo) {
+                    const embedUrl = getEmbedUrl(url);
+                    if (embedUrl.includes('youtube.com/embed') || embedUrl.includes('player.vimeo.com')) {
+                        previewHtml = `
+                            <div class="flag-preview" onclick="event.stopPropagation(); openFullscreen('<iframe src=\\'${embedUrl}\\' allowfullscreen style=\\'width:100%;height:100%;border:none;\\'></iframe>', '${text || type}')">
+                                <iframe src="${embedUrl}" allowfullscreen loading="lazy" frameborder="0" style="pointer-events:none;"></iframe>
+                            </div>
+                        `;
+                    } else {
+                        previewHtml = `
+                            <div class="flag-preview" onclick="event.stopPropagation(); openFullscreen('<video controls autoplay style=\\'width:100%;height:100%;\\'><source src=\\'${url}\\' type=\\'video/mp4\\'>Ваш браузер не поддерживает видео</video>', '${text || type}')">
+                                <video controls style="width:100%; max-height:200px; border-radius:4px; background:#000; pointer-events:none;">
+                                    <source src="${url}" type="video/mp4">
+                                </video>
+                            </div>
+                        `;
+                    }
+                } else if (isImage) {
+                    previewHtml = `
+                        <div class="flag-preview" onclick="event.stopPropagation(); openFullscreen('<img src=\\'${url}\\' style=\\'width:100%;height:100%;object-fit:contain;\\'>', '${text || type}')">
+                            <img src="${url}" alt="Preview" loading="lazy">
+                        </div>
+                    `;
+                } else {
+                    previewHtml = `
+                        <div class="flag-preview" onclick="event.stopPropagation(); window.open('${url}', '_blank')" style="cursor:pointer; padding:10px; text-align:center; background:rgba(255,255,255,0.05);">
+                            <span style="color:#66ccff;">🔗 Открыть ссылку</span>
+                        </div>
+                    `;
+                }
+            }
+
+            const typeLabel = type;
+
+            const popupContent = `
+                <div class="flag-title">${typeLabel}</div>
+                <div class="flag-type">📍 ${latlng[0].toFixed(5)}, ${latlng[1].toFixed(5)}</div>
+                ${text ? `<div style="margin-bottom:6px;font-size:14px;">📝 ${text}</div>` : ''}
+                ${previewHtml}
+            `;
+
+            const popup = L.popup({
+                className: 'flag-popup',
+                content: popupContent,
+                offset: [0, -10],
+                maxWidth: 320,
+                minWidth: 250,
+            });
+            marker.bindPopup(popup);
+        }
+
+        // ============================================================
+        //  ЗАПУСК
+        // ============================================================
+        document.addEventListener('DOMContentLoaded', initMap);
+    </script>
+</body>
+</html>
